@@ -17,7 +17,8 @@
   assign has_badges = false
   assign badge_position = null
   if product != blank
-    if product.available == false or product.compare_at_price > product.price
+    assign selected_variant = product.selected_or_first_available_variant
+    if product.available == false or selected_variant.available == false or selected_variant.compare_at_price > selected_variant.price
       assign has_badges = true
       assign badge_position = settings.badge_position
     endif
@@ -91,8 +92,14 @@
       # Sort media so product.featured_media.preview_image comes first as that is the most relevant image to display
       # product.featured_media updates based on search context and filters applied
 
-      assign other_media = product.media | reject: 'src', product.featured_media
-      assign media_list_to_show = product.featured_media | concat: other_media
+      assign selected_variant = product.selected_or_first_available_variant
+      assign featured_media = selected_variant.featured_media
+      if featured_media == blank
+        assign featured_media = product.featured_media
+      endif
+
+      assign other_media = product.media | reject: 'src', featured_media
+      assign media_list_to_show = featured_media | concat: other_media
 
       if product.media.size > 2 and generic_media_size > 0
         assign show_arrows = true
@@ -107,16 +114,25 @@
       endif
 
       capture slides
+        assign slide_index = 0
+        assign visible_slide_count = 0
         for media in media_list_to_show
           assign loading = 'lazy'
           assign sizes = 'auto, ' | append: image_sizes
 
           assign hidden = false
           assign attributes = ''
+          assign variant_ids = ''
           if variant_images contains media.src
-            assign attributes = 'variant-image'
+            for variant in product.variants
+              if variant.featured_media.id == media.id
+                assign variant_ids = variant_ids | append: variant.id | append: ','
+              endif
+            endfor
 
-            if forloop.first == false
+            assign attributes = 'variant-image data-variant-ids="' | append: variant_ids | append: '"'
+
+            if selected_variant.featured_media.id != media.id
               # hide all variant images that aren't the first one
               assign hidden = true
             endif
@@ -124,9 +140,6 @@
 
           # Performance improvement: don't render more than 5 visible images into the slideshow
           # We'll keep the images that we need for the variant images and hover next.
-          if forloop.first
-            assign visible_slide_count = 0
-          endif
           unless hidden
             assign visible_slide_count = visible_slide_count | plus: 1
           endunless
@@ -148,7 +161,54 @@
             render 'product-media', media: media, sizes: sizes, loading: loading, preview_image_only: true
           endcapture
 
-          render 'slideshow-slide', slide_id: media.id, index: forloop.index0, hidden: hidden, class: class, attributes: attributes, children: slideshow_children, media_fit: media_fit
+          render 'slideshow-slide', slide_id: media.id, index: slide_index, hidden: hidden, class: class, attributes: attributes, children: slideshow_children, media_fit: media_fit
+          assign slide_index = slide_index | plus: 1
+
+          for variant in product.variants
+            if variant.featured_media.id == media.id and variant.metafields.custom.hover_image.value != blank
+              assign hover_image = variant.metafields.custom.hover_image.value
+              assign hover_image_hidden = true
+
+              if variant.id == selected_variant.id
+                if settings.show_second_image_on_hover or settings.product_card_carousel
+                  assign hover_image_hidden = false
+                endif
+              endif
+
+              unless hover_image_hidden
+                assign visible_slide_count = visible_slide_count | plus: 1
+              endunless
+              if hover_image_hidden == false and visible_slide_count > max_visible_slide_count
+                continue
+              endif
+
+              capture hover_image_children
+                assign hover_image_url = hover_image | image_url: width: 3840
+                assign focal_point_style = ''
+                if hover_image.presentation.focal_point != blank
+                  assign focal_point_style = '--focal-point: ' | append: hover_image.presentation.focal_point | append: ';'
+                endif
+
+                echo '<div class="product-media" style="--ratio: '
+                echo hover_image.aspect_ratio | default: 1
+                echo '" data-media-id="'
+                echo hover_image.id
+                echo '">'
+                echo hover_image | image_url: width: 3840 | image_tag: widths: '240, 352, 832, 1200, 1600', alt: hover_image.alt, sizes: sizes, loading: loading, class: 'product-media__image', data_max_resolution: hover_image_url, style: focal_point_style
+                echo '</div>'
+              endcapture
+
+              assign hover_slide_id = 'variant-hover-' | append: variant.id
+              assign hover_attributes = 'variant-image data-variant-hover-image data-variant-ids="' | append: variant.id | append: ',"'
+              assign hover_class = 'product-media-container media-fit product-media-container--image'
+              if constrain_to_viewport
+                assign hover_class = hover_class | append: ' constrain-height'
+              endif
+
+              render 'slideshow-slide', slide_id: hover_slide_id, index: slide_index, hidden: hover_image_hidden, class: hover_class, attributes: hover_attributes, children: hover_image_children, media_fit: media_fit
+              assign slide_index = slide_index | plus: 1
+            endif
+          endfor
         endfor
       endcapture
 

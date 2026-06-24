@@ -52,8 +52,10 @@
     </variant-picker>
     {% render 'variant-swatches', product_resource: product, has_option_selected: true %}
 
+    {% render 'product-card-badges', product: product %}
+
     <product-price>
-      {% render 'price', product_resource: product, show_unit_price: true %}
+      {% render 'price', product_resource: product, show_unit_price: true, show_sale_price_first: true %}
     </product-price>
 
     <product-sku-component

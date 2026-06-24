@@ -79,6 +79,8 @@
   if product_resource.selected_variant or has_option_selected
     assign allow_preselection = true
   endif
+
+  assign fieldset_index = 0
 %}
 
 <swatches-variant-picker-component
@@ -109,9 +111,15 @@
         # Use product_option.position which is the actual position among ALL options
         assign swatch_option_position = product_option.position
         assign swatch_option_key = 'option' | append: swatch_option_position
+        assign current_fieldset_index = fieldset_index
+        assign fieldset_index = fieldset_index | plus: 1
       -%}
 
-      <fieldset class="variant-option variant-option--buttons variant-option--swatches">
+      <fieldset
+        class="variant-option variant-option--buttons variant-option--swatches"
+        data-fieldset-index="{{ current_fieldset_index }}"
+        ref="fieldsets[]"
+      >
         {% capture children %}
           {%- for product_option_value in product_option.values -%}
             {% liquid
@@ -126,6 +134,7 @@
               endcomment
 
               assign featured_media = product_option_value.variant.featured_media
+              assign first_available_variant = nil
               assign child_product = nil
 
               if featured_media == blank
@@ -158,7 +167,13 @@
                   type="radio"
                   name="{{ product_option.name | escape }}-{{ product_resource.id }}-swatch"
                   value="{{ product_option_value | escape }}"
-                  aria-label="{{ product_option_value.name }}"
+                  aria-label="{{ product_resource.title | escape }} - {{ product_option_value.name | escape }}{% if product_option_value.available == false %} - {{ 'products.product.sold_out' | t }}{% endif %}"
+                  {% if product_option_value.available == false %}
+                    aria-disabled="true"
+                  {% endif %}
+                  data-previous-checked="false"
+                  data-fieldset-index="{{ current_fieldset_index }}"
+                  data-input-index="{{ forloop.index0 }}"
                   data-input-id="{{ product_option.position }}-{{ forloop.index0 }}"
                   data-option-name="{{ product_option.name | escape }}"
                   data-option-media-id="{{ featured_media.id }}"
@@ -166,7 +181,10 @@
                   data-option-available="{{ product_option_value.available }}"
                   data-connected-product-url="{{ product_option_value.product_url }}"
                   {% if allow_preselection and product_option_value.selected %}
+                    data-current-checked="true"
                     checked
+                  {% else %}
+                    data-current-checked="false"
                   {% endif %}
                   data-variant-id="{{ first_available_variant.id | default: product_option_value.variant.id }}"
                   data-first-available-or-first-variant-id="{{ first_available_variant.id | default: product_option_value.variant.id }}"

@@ -218,6 +218,7 @@ export class ProductCard extends ProductCardLink {
 
         // Update price, availability, and URL based on new variant
         this.updatePrice(html);
+        this.updateBadges(html);
         this.#isUnavailableVariantSelected(html);
         this.#updateProductUrl(html);
         this.refs.quickAdd?.fetchProductPage(this.productPageUrl);
@@ -267,11 +268,24 @@ export class ProductCard extends ProductCardLink {
    * @param {Document} html - The parsed HTML document with updated variant data.
    */
   updatePrice(html) {
-    const priceContainer = this.querySelectorAll(`product-price [ref='priceContainer']`)[1];
+    const priceContainer = this.querySelector(`product-price [ref='priceContainer']`);
     const newPriceElement = html.querySelector(`product-price [ref='priceContainer']`);
 
     if (newPriceElement && priceContainer) {
       morph(priceContainer, newPriceElement);
+    }
+  }
+
+  /**
+   * Updates product card badges for the selected variant.
+   * @param {Document} html - The parsed HTML document with updated variant data.
+   */
+  updateBadges(html) {
+    const badgesContainer = this.querySelector('.product-badges');
+    const newBadgesElement = html.querySelector('.product-badges');
+
+    if (newBadgesElement && badgesContainer) {
+      morph(badgesContainer, newBadgesElement);
     }
   }
 
@@ -340,6 +354,7 @@ export class ProductCard extends ProductCardLink {
     }
 
     const selectedImageId = this.variantPicker?.selectedOption.dataset.optionMediaId;
+    const selectedVariantId = this.variantPicker?.selectedOption.dataset.variantId;
 
     if (slideshow && selectedImageId) {
       const { slides = [] } = slideshow.refs;
@@ -347,7 +362,11 @@ export class ProductCard extends ProductCardLink {
       for (const slide of slides) {
         if (slide.getAttribute('variant-image') == null) continue;
 
-        slide.hidden = slide.getAttribute('slide-id') !== selectedImageId;
+        const variantIds = slide.dataset.variantIds?.split(',').filter(Boolean) || [];
+        const isSelectedFeaturedImage = slide.getAttribute('slide-id') === selectedImageId;
+        const isSelectedVariantImage = selectedVariantId ? variantIds.includes(selectedVariantId) : false;
+
+        slide.hidden = !isSelectedFeaturedImage && !isSelectedVariantImage;
       }
 
       slideshow.select({ id: selectedImageId }, undefined, { animate: false });

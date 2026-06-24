@@ -1,0 +1,40 @@
+{%- doc -%}
+  Renders product card badges for the currently selected variant.
+
+  @param {object} product - The product object.
+{%- enddoc -%}
+
+{% liquid
+  assign selected_variant = product.selected_or_first_available_variant
+  assign show_sold_out_badge = false
+  assign show_sale_badge = false
+
+  if product.available == false or selected_variant.available == false
+    assign show_sold_out_badge = true
+  elsif selected_variant.compare_at_price > selected_variant.price
+    assign show_sale_badge = true
+  endif
+%}
+
+<div
+  class="product-badges product-badges--{{ settings.badge_position }}"
+  style="
+    --badge-border-radius: {{ settings.badge_corner_radius }}px;
+    --badge-font-family: var(--font-{{ settings.badge_font_family }}--family); --badge-font-weight: var(--font-{{ settings.badge_font_family }}--weight); --badge-text-transform: {{ settings.badge_text_transform }};
+  "
+>
+  {%- if show_sold_out_badge or show_sale_badge -%}
+    <div
+      class="
+        product-badges__badge product-badges__badge--rectangle
+        {% if show_sold_out_badge %} color-custom-badge-sold-out{% elsif show_sale_badge %} color-custom-badge-sale{% endif %}
+      "
+    >
+      {%- if show_sold_out_badge -%}
+        {{ 'content.product_badge_sold_out' | t }}
+      {%- elsif show_sale_badge -%}
+        {{ 'content.product_badge_sale' | t }}
+      {%- endif -%}
+    </div>
+  {%- endif -%}
+</div>
