@@ -1,0 +1,107 @@
+{%- doc -%}
+  Renders product-level color swatches from a product color group metaobject.
+
+  @param {object} product_resource - The current product object.
+  @param {boolean} [has_product_selected] - Whether the current product should render selected.
+
+  @example
+  {% render 'sibling-product-swatches', product_resource: product %}
+{%- enddoc -%}
+
+{% liquid
+  assign product_color_group = product_resource.metafields.custom.product_color_group.value
+  assign sibling_products = product_color_group.products.value
+%}
+
+{% if sibling_products != blank %}
+  <sibling-product-swatches
+    data-product-id="{{ product_resource.id }}"
+    data-product-url="{{ product_resource.url }}"
+    data-product-handle="{{ product_resource.handle }}"
+    data-product-title="{{ product_resource.title | escape }}"
+  >
+    <form>
+      <fieldset class="variant-option variant-option--buttons variant-option--swatches">
+        <ul class="variant-option__swatches-list">
+          {% for sibling_product in sibling_products %}
+            {% liquid
+              assign sibling_variant = sibling_product.selected_or_first_available_variant
+              assign featured_media = sibling_variant.featured_media
+              if featured_media == blank
+                assign featured_media = sibling_product.featured_media
+              endif
+
+              assign sibling_swatch = nil
+              for product_option in sibling_product.options_with_values
+                assign swatch_count = product_option.values | map: 'swatch' | compact | size
+                if swatch_count == 0
+                  continue
+                endif
+
+                assign option_key = 'option' | append: product_option.position
+                for product_option_value in product_option.values
+                  if sibling_variant[option_key] == product_option_value.name
+                    assign sibling_swatch = product_option_value.swatch
+                    break
+                  endif
+                endfor
+
+                if sibling_swatch != nil
+                  break
+                endif
+              endfor
+
+              assign is_current_product = false
+              if sibling_product.id == product_resource.id or sibling_product.handle == product_resource.handle
+                assign is_current_product = true
+              endif
+            %}
+
+            <li class="variant-option__swatch">
+              <label
+                data-media-id="{{ featured_media.id }}"
+                class="variant-option__button-label variant-option__button-label--has-swatch sibling-product-swatches__label"
+                {% if is_current_product %}
+                  aria-current="true"
+                {% endif %}
+              >
+                <input
+                  type="radio"
+                  name="SiblingProduct-{{ product_resource.id }}-swatch"
+                  value="{{ sibling_product.handle | escape }}"
+                  aria-label="{{ sibling_product.title | escape }}{% unless sibling_product.available %} - {{ 'products.product.sold_out' | t }}{% endunless %}"
+                  data-product-id="{{ sibling_product.id }}"
+                  data-product-url="{{ sibling_product.url }}"
+                  data-product-title="{{ sibling_product.title | escape }}"
+                  data-variant-id="{{ sibling_variant.id }}"
+                  data-option-available="{{ sibling_product.available }}"
+                  {% unless sibling_product.available %}
+                    aria-disabled="true"
+                  {% endunless %}
+                  {% if is_current_product or has_product_selected and forloop.first %}
+                    data-current-checked="true"
+                    checked
+                  {% else %}
+                    data-current-checked="false"
+                  {% endif %}
+                >
+                {% render 'swatch', swatch: sibling_swatch, variant_image: featured_media %}
+                {% unless sibling_product.available %}
+                  <svg
+                    viewBox="0 0 100 46"
+                    preserveAspectRatio="xMidYMid slice"
+                    class="variant-option__strikethrough"
+                    aria-hidden="true"
+                  >
+                    <line x1="100" y1="0" x2="0" y2="46" vector-effect="non-scaling-stroke"></line>
+                    <line x1="100" y1="0" x2="0" y2="46" vector-effect="non-scaling-stroke"></line>
+                  </svg>
+                {% endunless %}
+              </label>
+            </li>
+          {% endfor %}
+        </ul>
+      </fieldset>
+    </form>
+  </sibling-product-swatches>
+{% endif %}

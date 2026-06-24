@@ -1,4 +1,3 @@
-import { OverflowList } from '@theme/overflow-list';
 import VariantPicker from '@theme/variant-picker';
 import { ProductComponent } from '@theme/view-event-elements';
 import { debounce, isDesktopBreakpoint, mediaQueryLarge, yieldToMainThread } from '@theme/utilities';
@@ -261,6 +260,183 @@ export class ProductCard extends ProductCardLink {
         })
       );
     });
+  }
+
+  /**
+   * Updates the product card from a sibling product render response.
+   * @param {Document} html - The parsed HTML document with updated product data.
+   */
+  updateSiblingProduct(html) {
+    const responseProductCard = html.querySelector('product-card');
+    const payload = html.querySelector('[data-sibling-product-card-update]');
+    if (!(payload instanceof HTMLElement) || !(responseProductCard instanceof HTMLElement)) return;
+
+    const productUrl = payload.dataset.productUrl;
+    const productId = payload.dataset.productId;
+    const productTitle = payload.dataset.productTitle;
+    const featuredImageSrc = payload.dataset.featuredImageSrc;
+    const featuredImageSrcset = payload.dataset.featuredImageSrcset;
+    const featuredImageAlt = payload.dataset.featuredImageAlt || productTitle || '';
+    const hoverImageSrc = payload.dataset.hoverImageSrc;
+    const hoverImageSrcset = payload.dataset.hoverImageSrcset;
+    const hoverImageAlt = payload.dataset.hoverImageAlt || productTitle || '';
+    const featuredMediaUrl = responseProductCard.getAttribute('data-featured-media-url') || featuredImageSrc;
+    const viewEventPayload = responseProductCard.getAttribute('view-event-payload');
+
+    if (productId) {
+      this.dataset.productId = productId;
+      this.querySelector('[ref="cardGallery"]')?.setAttribute('data-product-id', productId);
+    }
+
+    if (viewEventPayload) {
+      this.setAttribute('view-event-payload', viewEventPayload);
+    }
+
+    if (featuredMediaUrl) {
+      this.setAttribute('data-featured-media-url', featuredMediaUrl);
+    }
+
+    if (productUrl) {
+      this.#updateProductLinks(productUrl);
+    }
+
+    if (productTitle) {
+      this.#updateProductTitle(productTitle);
+    }
+
+    this.updatePrice(html);
+    this.updateBadges(html);
+    this.#updateSiblingSwatches(html);
+    this.#updateQuickAdd(html);
+    this.#updateFeaturedImage(featuredImageSrc, featuredImageSrcset, featuredImageAlt);
+    this.#updateHoverImage(hoverImageSrc || featuredImageSrc, hoverImageSrcset || featuredImageSrcset, hoverImageAlt);
+    this.#previousSlideIndex = null;
+  }
+
+  /**
+   * Updates all product-card links for the current card.
+   * @param {string} productUrl - The new product URL.
+   */
+  #updateProductLinks(productUrl) {
+    const { productCardLink, productTitleLink, cardGalleryLink } = this.refs;
+
+    if (productCardLink instanceof HTMLAnchorElement) {
+      productCardLink.href = productUrl;
+    }
+
+    if (cardGalleryLink instanceof HTMLAnchorElement) {
+      cardGalleryLink.href = productUrl;
+    }
+
+    if (productTitleLink instanceof HTMLAnchorElement) {
+      productTitleLink.href = productUrl;
+    }
+  }
+
+  /**
+   * Updates product title text while preserving the existing theme text markup.
+   * @param {string} productTitle - The new product title.
+   */
+  #updateProductTitle(productTitle) {
+    const titleLink = this.refs.productTitleLink;
+    const titleElement = titleLink?.querySelector('p, h1, h2, h3, h4, h5, h6, span') || titleLink;
+
+    if (titleElement) {
+      titleElement.textContent = productTitle;
+    }
+
+    const zoomOutTitle = this.querySelector('.product-grid-view-zoom-out--details h3');
+    if (zoomOutTitle) {
+      zoomOutTitle.textContent = productTitle;
+    }
+
+    const hiddenTitle = this.refs.productCardLink?.querySelector('.visually-hidden');
+    if (hiddenTitle) {
+      hiddenTitle.textContent = productTitle;
+    }
+
+    const galleryLink = this.refs.cardGalleryLink;
+    if (galleryLink instanceof HTMLAnchorElement) {
+      galleryLink.setAttribute('aria-label', productTitle);
+    }
+  }
+
+  /**
+   * Updates sibling swatches with the latest selected product state.
+   * @param {Document} html - The parsed response document.
+   */
+  #updateSiblingSwatches(html) {
+    const currentSwatches = this.querySelector('sibling-product-swatches');
+    const newSwatches = html.querySelector('sibling-product-swatches');
+
+    if (currentSwatches && newSwatches) {
+      morph(currentSwatches, newSwatches);
+    }
+  }
+
+  /**
+   * Updates quick add so it submits the selected sibling product variant.
+   * @param {Document} html - The parsed response document.
+   */
+  #updateQuickAdd(html) {
+    const currentQuickAdd = this.querySelector('quick-add-component');
+    const newQuickAdd = html.querySelector('[data-sibling-product-card-update] quick-add-component');
+
+    if (currentQuickAdd && newQuickAdd) {
+      morph(currentQuickAdd, newQuickAdd);
+    }
+  }
+
+  /**
+   * Updates the first visible card image for the selected sibling product.
+   * @param {string | undefined} src - Image src.
+   * @param {string | undefined} srcset - Image srcset.
+   * @param {string} alt - Image alt text.
+   */
+  #updateFeaturedImage(src, srcset, alt) {
+    if (!src) return;
+
+    const image =
+      this.querySelector('slideshow-slide[aria-hidden="false"] img.product-media__image') ||
+      this.querySelector('slideshow-slide:not([hidden]) img.product-media__image') ||
+      this.querySelector('img.product-media__image');
+
+    if (!(image instanceof HTMLImageElement)) return;
+
+    image.animate([{ opacity: 0.7 }, { opacity: 1 }], {
+      duration: 140,
+      easing: 'ease-out',
+    });
+
+    image.src = src;
+    image.srcset = srcset || src;
+    image.alt = alt;
+    image.dataset.maxResolution = src;
+  }
+
+  /**
+   * Updates the second card image used by hover/carousel previews.
+   * @param {string | undefined} src - Image src.
+   * @param {string | undefined} srcset - Image srcset.
+   * @param {string} alt - Image alt text.
+   */
+  #updateHoverImage(src, srcset, alt) {
+    if (!src) return;
+
+    const slides = Array.from(this.querySelectorAll('slideshow-slide'));
+    const image =
+      this.querySelector('slideshow-slide[data-variant-hover-image] img.product-media__image') ||
+      slides[1]?.querySelector('img.product-media__image');
+
+    if (!(image instanceof HTMLImageElement)) return;
+
+    image.src = src;
+    image.srcset = srcset || src;
+    image.alt = alt;
+    image.dataset.maxResolution = src;
+
+    const slide = image.closest('slideshow-slide');
+    slide?.removeAttribute('hidden');
   }
 
   /**
@@ -629,21 +805,85 @@ class SwatchesVariantPickerComponent extends VariantPicker {
     super.variantChanged(event);
   }
 
-  /**
-   * Shows all swatches.
-   * @param {Event} [event] - The event that triggered the show all swatches.
-   */
   showAllSwatches(event) {
     event?.preventDefault();
-
-    const { overflowList } = this.refs;
-
-    if (overflowList instanceof OverflowList) {
-      overflowList.showAll();
-    }
   }
 }
 
 if (!customElements.get('swatches-variant-picker-component')) {
   customElements.define('swatches-variant-picker-component', SwatchesVariantPickerComponent);
+}
+
+class SiblingProductSwatches extends HTMLElement {
+  /** @type {AbortController | null} */
+  #abortController = null;
+
+  /** @type {number} */
+  #requestId = 0;
+
+  connectedCallback() {
+    this.addEventListener('change', this.#handleChange);
+  }
+
+  disconnectedCallback() {
+    this.removeEventListener('change', this.#handleChange);
+    this.#abortController?.abort();
+  }
+
+  /**
+   * Handles sibling product swatch selection.
+   * @param {Event} event - The change event.
+   */
+  #handleChange = (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) return;
+
+    const productUrl = input.dataset.productUrl;
+    const productCard = this.closest('product-card');
+
+    if (!productUrl || !(productCard instanceof ProductCard)) return;
+    if (input.dataset.productId === productCard.dataset.productId) return;
+
+    this.#fetchSiblingProduct(productUrl, productCard);
+  };
+
+  /**
+   * Fetches and applies sibling product card data.
+   * @param {string} productUrl - Product URL to fetch.
+   * @param {ProductCard} productCard - The current product card.
+   */
+  async #fetchSiblingProduct(productUrl, productCard) {
+    this.#abortController?.abort();
+    this.#abortController = new AbortController();
+
+    const requestId = ++this.#requestId;
+    const url = new URL(productUrl, window.location.origin);
+    url.searchParams.set('section_id', 'section-rendering-product-card');
+
+    this.setAttribute('aria-busy', 'true');
+
+    try {
+      const response = await fetch(url.href, { signal: this.#abortController.signal });
+      if (!response.ok) throw new Error(`Failed to load sibling product: ${response.status}`);
+
+      const text = await response.text();
+      if (requestId !== this.#requestId) return;
+
+      const html = new DOMParser().parseFromString(text, 'text/html');
+      productCard.updateSiblingProduct(html);
+    } catch (error) {
+      if (error?.name !== 'AbortError') {
+        console.warn('[product-card] Sibling product update failed:', error);
+      }
+    } finally {
+      if (requestId === this.#requestId) {
+        this.removeAttribute('aria-busy');
+      }
+    }
+  }
+
+}
+
+if (!customElements.get('sibling-product-swatches')) {
+  customElements.define('sibling-product-swatches', SiblingProductSwatches);
 }

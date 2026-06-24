@@ -1,5 +1,12 @@
 {%- liquid
   assign block_settings = block.settings
+  assign product_color_group = closest.product.metafields.custom.product_color_group.value
+  assign sibling_products = product_color_group.products.value
+
+  if sibling_products != blank
+    assign product_has_sibling_swatches = true
+  endif
+
   for product_option in closest.product.options_with_values
     assign swatch_count = product_option.values | map: 'swatch' | compact | size
 
@@ -20,7 +27,7 @@
   }
 {% endstylesheet %}
 
-{% if product_has_swatches %}
+{% if product_has_sibling_swatches or product_has_swatches %}
   <product-swatches
     data-product-id="{{ closest.product.id }}"
     data-product-url="{{ closest.product.url }}"
@@ -36,7 +43,11 @@
     "
     {{ block.shopify_attributes }}
   >
-    {% render 'variant-swatches', product_resource: closest.product %}
+    {% if product_has_sibling_swatches %}
+      {% render 'sibling-product-swatches', product_resource: closest.product %}
+    {% else %}
+      {% render 'variant-swatches', product_resource: closest.product %}
+    {% endif %}
   </product-swatches>
 {% endif %}
 

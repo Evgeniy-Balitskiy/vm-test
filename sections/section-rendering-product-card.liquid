@@ -26,6 +26,27 @@
   endunless
 
   assign sku = product.selected_or_first_available_variant.sku
+  assign product_color_group = product.metafields.custom.product_color_group.value
+  assign sibling_products = product_color_group.products.value
+
+  assign featured_media = product.selected_or_first_available_variant.featured_media
+  if featured_media == blank
+    assign featured_media = product.featured_media
+  endif
+
+  assign featured_image = featured_media.preview_image
+  assign hover_media = blank
+  for media in product.media
+    unless media.id == featured_media.id
+      assign hover_media = media
+      break
+    endunless
+  endfor
+
+  if hover_media == blank
+    assign hover_media = featured_media
+  endif
+  assign hover_image = hover_media.preview_image
 %}
 
 <product-card
@@ -50,7 +71,11 @@
         {{ product.selected_or_first_available_variant | json }}
       </script>
     </variant-picker>
-    {% render 'variant-swatches', product_resource: product, has_option_selected: true %}
+    {% if sibling_products != blank %}
+      {% render 'sibling-product-swatches', product_resource: product, has_product_selected: true %}
+    {% else %}
+      {% render 'variant-swatches', product_resource: product, has_option_selected: true %}
+    {% endif %}
 
     {% render 'product-card-badges', product: product %}
 
@@ -65,6 +90,28 @@
       {% render 'sku', product_resource: product %}
     </product-sku-component>
   </a>
+
+  <div
+    data-sibling-product-card-update
+    data-product-id="{{ product.id }}"
+    data-product-url="{{ url }}"
+    data-product-title="{{ product.title | escape }}"
+    data-featured-media-id="{{ featured_media.id }}"
+    {% if featured_image != blank %}
+      data-featured-image-src="{{ featured_image | image_url: width: 900 }}"
+      data-featured-image-srcset="{{ featured_image | image_url: width: 352 }} 352w, {{ featured_image | image_url: width: 832 }} 832w, {{ featured_image | image_url: width: 1200 }} 1200w"
+      data-featured-image-alt="{{ featured_image.alt | default: product.title | escape }}"
+    {% endif %}
+    {% if hover_image != blank %}
+      data-hover-image-src="{{ hover_image | image_url: width: 900 }}"
+      data-hover-image-srcset="{{ hover_image | image_url: width: 352 }} 352w, {{ hover_image | image_url: width: 832 }} 832w, {{ hover_image | image_url: width: 1200 }} 1200w"
+      data-hover-image-alt="{{ hover_image.alt | default: product.title | escape }}"
+    {% endif %}
+  >
+    {% if settings.quick_add or settings.mobile_quick_add %}
+      {% render 'quick-add', product: product, section_id: section.id %}
+    {% endif %}
+  </div>
 </product-card>
 
 {% schema %}
